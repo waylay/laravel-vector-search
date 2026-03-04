@@ -18,6 +18,7 @@ class ProductManualSearchController extends Controller
             'section' => ['nullable', 'string', 'max:255'],
             'difficulty' => ['nullable', 'string', 'max:255'],
             'min_similarity' => ['nullable', 'numeric', 'between:0,1'],
+            'rerank' => ['nullable', 'boolean'],
         ]);
 
         $query = ProductManual::query();
@@ -36,18 +37,32 @@ class ProductManualSearchController extends Controller
 
         $semanticSearch = null;
         if (! empty($filters['search'])) {
-            $semanticSearch = $this->semanticQueryFor($filters['search']);
+            // $semanticSearch = $this->semanticQueryFor($filters['search']);
             $query->whereVectorSimilarTo(
                 'embedding',
-                $semanticSearch,
+                // $semanticSearch,
+                'product manuals about ' . $filters['search'],
                 minSimilarity: (float) ($filters['min_similarity'] ?? 0.35)
             );
         } else {
             $query->latest();
         }
 
+        $manuals = $query->limit(15)->get();
+
+        if (! empty($filters['search']) && (bool) ($filters['rerank'] ?? false)) {
+            try {
+                $manuals = $manuals->rerank(
+                    by: ['product_name', 'section', 'content'],
+                    query: $semanticSearch ?? $filters['search'],
+                    limit: 15,
+                );
+            } catch (Throwable) {
+            }
+        }
+
         return view('embeddings.product-manuals', [
-            'manuals' => $query->limit(15)->get(),
+            'manuals' => $manuals,
             'productNames' => ProductManual::query()->select('product_name')->distinct()->orderBy('product_name')->pluck('product_name'),
             'sections' => ProductManual::query()->select('section')->distinct()->orderBy('section')->pluck('section'),
             'difficulties' => ProductManual::query()->select('difficulty')->distinct()->orderBy('difficulty')->pluck('difficulty'),
@@ -57,6 +72,7 @@ class ProductManualSearchController extends Controller
                 'section' => $filters['section'] ?? '',
                 'difficulty' => $filters['difficulty'] ?? '',
                 'min_similarity' => $filters['min_similarity'] ?? 0.35,
+                'rerank' => (bool) ($filters['rerank'] ?? false),
             ],
             'semanticSearch' => $semanticSearch,
         ]);

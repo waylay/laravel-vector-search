@@ -18,6 +18,7 @@ class SupportFaqSearchController extends Controller
             'product_line' => ['nullable', 'string', 'max:255'],
             'priority' => ['nullable', 'string', 'max:255'],
             'min_similarity' => ['nullable', 'numeric', 'between:0,1'],
+            'rerank' => ['nullable', 'boolean'],
         ]);
 
         $query = SupportFaq::query();
@@ -36,18 +37,32 @@ class SupportFaqSearchController extends Controller
 
         $semanticSearch = null;
         if (! empty($filters['search'])) {
-            $semanticSearch = $this->semanticQueryFor($filters['search']);
+            // $semanticSearch = $this->semanticQueryFor($filters['search']);
             $query->whereVectorSimilarTo(
                 'embedding',
-                $semanticSearch,
+                // $semanticSearch,
+                'support FAQs about ' . $filters['search'],
                 minSimilarity: (float) ($filters['min_similarity'] ?? 0.35)
             );
         } else {
             $query->latest();
         }
 
+        $faqs = $query->limit(15)->get();
+
+        if (! empty($filters['search']) && (bool) ($filters['rerank'] ?? false)) {
+            try {
+                $faqs = $faqs->rerank(
+                    by: ['question', 'answer'],
+                    query: $semanticSearch ?? $filters['search'],
+                    limit: 15,
+                );
+            } catch (Throwable) {
+            }
+        }
+
         return view('embeddings.support-faqs', [
-            'faqs' => $query->limit(15)->get(),
+            'faqs' => $faqs,
             'categories' => SupportFaq::query()->select('category')->distinct()->orderBy('category')->pluck('category'),
             'productLines' => SupportFaq::query()->select('product_line')->distinct()->orderBy('product_line')->pluck('product_line'),
             'priorities' => SupportFaq::query()->select('priority')->distinct()->orderBy('priority')->pluck('priority'),
@@ -57,6 +72,7 @@ class SupportFaqSearchController extends Controller
                 'product_line' => $filters['product_line'] ?? '',
                 'priority' => $filters['priority'] ?? '',
                 'min_similarity' => $filters['min_similarity'] ?? 0.35,
+                'rerank' => (bool) ($filters['rerank'] ?? false),
             ],
             'semanticSearch' => $semanticSearch,
         ]);

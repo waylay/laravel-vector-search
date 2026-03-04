@@ -14,8 +14,8 @@
     </div>
 
     <form method="GET" class="grid gap-3 rounded-xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
-        <input type="text" name="search" value="{{ $filters['search'] }}" placeholder="Search intent..." class="rounded-lg border border-slate-300 px-3 py-2 lg:col-span-2">
-
+        <input type="text" name="search" value="{{ $filters['search'] }}" placeholder="Search intent..." class="rounded-lg border border-slate-300 px-3 py-2 lg:col-span-4">
+        <button type="submit" class="rounded-lg bg-cyan-700 px-4 py-2 font-medium text-white">Search</button>
         <select name="topic" class="rounded-lg border border-slate-300 px-3 py-2">
             <option value="">All topics</option>
             @foreach($topics as $topic)
@@ -29,10 +29,14 @@
                 <option value="{{ $audience }}" @selected($filters['audience'] === $audience)>{{ $audience }}</option>
             @endforeach
         </select>
+{{--
+        <label class="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <input type="checkbox" name="rerank" value="1" @checked($filters['rerank'])>
+            Rerank
+        </label> --}}
 
-        <div class="flex gap-2">
+        <div class="flex gap-2 lg:col-span-1">
             <input type="number" step="0.01" min="0" max="1" name="min_similarity" value="{{ $filters['min_similarity'] }}" class="w-full rounded-lg border border-slate-300 px-3 py-2" title="Similarity threshold">
-            <button class="rounded-lg bg-cyan-700 px-4 py-2 font-medium text-white">Search</button>
         </div>
     </form>
 

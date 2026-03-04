@@ -17,6 +17,7 @@ class BlogPostSearchController extends Controller
             'topic' => ['nullable', 'string', 'max:255'],
             'audience' => ['nullable', 'string', 'max:255'],
             'min_similarity' => ['nullable', 'numeric', 'between:0,1'],
+            'rerank' => ['nullable', 'boolean'],
         ]);
 
         $query = BlogPost::query();
@@ -31,18 +32,32 @@ class BlogPostSearchController extends Controller
 
         $semanticSearch = null;
         if (! empty($filters['search'])) {
-            $semanticSearch = $this->semanticQueryFor($filters['search']);
+            // $semanticSearch = $this->semanticQueryFor($filters['search']);
             $query->whereVectorSimilarTo(
                 'embedding',
-                $semanticSearch,
+                // $semanticSearch,
+                'articles about ' . $filters['search'],
                 minSimilarity: (float) ($filters['min_similarity'] ?? 0.35)
             );
         } else {
             $query->latest();
         }
 
+        $blogPosts = $query->limit(15)->get();
+
+        if (! empty($filters['search']) && (bool) ($filters['rerank'] ?? false)) {
+            try {
+                $blogPosts = $blogPosts->rerank(
+                    by: ['title', 'excerpt', 'body'],
+                    query: $semanticSearch ?? $filters['search'],
+                    limit: 15,
+                );
+            } catch (Throwable) {
+            }
+        }
+
         return view('embeddings.blog-posts', [
-            'blogPosts' => $query->limit(15)->get(),
+            'blogPosts' => $blogPosts,
             'topics' => BlogPost::query()->select('topic')->distinct()->orderBy('topic')->pluck('topic'),
             'audiences' => BlogPost::query()->select('audience')->distinct()->orderBy('audience')->pluck('audience'),
             'filters' => [
@@ -50,6 +65,7 @@ class BlogPostSearchController extends Controller
                 'topic' => $filters['topic'] ?? '',
                 'audience' => $filters['audience'] ?? '',
                 'min_similarity' => $filters['min_similarity'] ?? 0.35,
+                'rerank' => (bool) ($filters['rerank'] ?? false),
             ],
             'semanticSearch' => $semanticSearch,
         ]);
@@ -57,7 +73,6 @@ class BlogPostSearchController extends Controller
 
     private function semanticQueryFor(string $search): string
     {
-        return $search;
         try {
             $response = SearchQueryAgent::make()->prompt(
                 'Rewrite this for semantic blog search: '.$search
